@@ -1,10 +1,12 @@
-// === KREDENSIAL LOGIN ===
+// === KREDENSIAL LOGIN & KONFIGURASI ===
 const ADMIN_ID = "admin";
 const ADMIN_PASS = "qc123"; 
-
-// === KONFIGURASI BLYNK ===
 const BLYNK_TOKEN = "_Uc_SlWvcnKwlaBGhY5e0nv-_K6J4YGY";
 const VIRTUAL_PIN = "V0";
+
+// === URL GOOGLE SHEETS (CLOUD DATABASE) ===
+// URL ini didapat dari hasil deploy Anda
+const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzomv5B1QZbiO5V6Bkzji775KDQAjgfqnGt9r43eyXfqtYu9Z3dYj01ltEAB4XHBa9Xhw/exec";
 
 // === SUHU DINAMIS (Local Storage) ===
 let TEMP_HIGH = parseFloat(localStorage.getItem('conf_high')) || 190.0;
@@ -15,7 +17,42 @@ let sessionData = [];
 let chartInstance = null;
 let currentDateKey = new Date().toISOString().slice(0, 10); 
 
-// === 1. FITUR SETTINGS ===
+// === 1. INTEGRASI CLOUD (GOOGLE SHEETS) ===
+async function loadCloudHistory() {
+    // Tampilkan status loading
+    document.getElementById('statusBadge').innerText = "SINKRONISASI CLOUD...";
+    document.getElementById('statusBadge').className = "badge badge-loading";
+
+    try {
+        const response = await fetch(GOOGLE_SCRIPT_URL);
+        const data = await response.json(); 
+        
+        // Reset Grafik
+        chartInstance.data.labels = [];
+        chartInstance.data.datasets[0].data = [];
+        sessionData = []; 
+
+        // Isi Grafik dengan Data Cloud
+        data.forEach(d => {
+            chartInstance.data.labels.push(d.time);
+            chartInstance.data.datasets[0].data.push(d.temp);
+            sessionData.push({ time: d.time, temp: d.temp });
+        });
+        
+        chartInstance.update();
+        calculateStats(); // Hitung statistik dari data cloud
+        
+        // Kembalikan status badge
+        document.getElementById('statusBadge').innerText = "DATA TERHUBUNG";
+        
+    } catch (error) {
+        console.error("Gagal tarik data Cloud, cek koneksi internet atau URL Script.", error);
+        // Fallback: Jika gagal, biarkan grafik kosong menunggu data realtime
+        document.getElementById('statusBadge').innerText = "CLOUD OFFLINE";
+    }
+}
+
+// === 2. FITUR SETTINGS ===
 function openSettings() {
     document.getElementById('inputHigh').value = TEMP_HIGH;
     document.getElementById('inputLow').value = TEMP_LOW;
@@ -41,7 +78,7 @@ function saveSettings() {
     }
 }
 
-// === 2. LOGIN LOGIC ===
+// === 3. LOGIN LOGIC ===
 function attemptLogin() {
     const u = document.getElementById('userid').value;
     const p = document.getElementById('password').value;
@@ -64,33 +101,12 @@ function checkSession() {
     }
 }
 
-// === 3. DATABASE BROWSER ===
-function saveDataLocal(temp, timeStr) {
-    let stored = JSON.parse(localStorage.getItem('petir_data_' + currentDateKey)) || [];
-    stored.push({ time: timeStr, temp: temp });
-    localStorage.setItem('petir_data_' + currentDateKey, JSON.stringify(stored));
-    sessionData = stored;
-}
-function loadDataByDate(dateKey) {
-    currentDateKey = dateKey;
-    const stored = JSON.parse(localStorage.getItem('petir_data_' + dateKey)) || [];
-    sessionData = stored;
-    chartInstance.data.labels = [];
-    chartInstance.data.datasets[0].data = [];
-    stored.forEach(d => {
-        chartInstance.data.labels.push(d.time);
-        chartInstance.data.datasets[0].data.push(d.temp);
-    });
-    chartInstance.update();
-    calculateStats();
-}
-
 // === 4. DASHBOARD LOGIC ===
 function initDashboard() {
     const dateInput = document.getElementById('datePicker');
     dateInput.value = currentDateKey;
-    dateInput.addEventListener('change', (e) => loadDataByDate(e.target.value));
-
+    
+    // Setup Chart
     const ctx = document.getElementById('tempChart').getContext('2d');
     chartInstance = new Chart(ctx, {
         type: 'line',
@@ -115,15 +131,21 @@ function initDashboard() {
         }
     });
 
-    loadDataByDate(currentDateKey);
+    // Panggil Data CLOUD saat start (Bukan LocalStorage lagi)
+    loadCloudHistory();
+
+    // Start Realtime Update
     setInterval(fetchBlynkData, 2000);
     setInterval(updateClock, 1000);
 }
 
-// === 5. FETCH & UI ===
+// === 5. FETCH REALTIME & UI ===
 async function fetchBlynkData() {
     const today = new Date().toISOString().slice(0, 10);
-    if (document.getElementById('datePicker').value !== today) return;
+    // Jika user ganti tanggal di datepicker, jangan fetch realtime (karena sedang lihat history)
+    // Tapi karena kita pakai Google Sheets untuk history, fitur datepicker bisa dikembangkan nanti.
+    // Untuk sekarang, kita fokus realtime monitoring hari ini.
+    
     try {
         const response = await fetch(`https://blynk.cloud/external/api/get?token=${BLYNK_TOKEN}&${VIRTUAL_PIN}`);
         const text = await response.text();
@@ -141,7 +163,6 @@ function updateUI(temp) {
     display.innerText = temp.toFixed(1);
     badge.className = "badge";
     
-    // Logic Warna Dinamis
     if (temp >= TEMP_HIGH) {
         display.style.color = "#ef4444";
         badge.classList.add("badge-danger");
@@ -161,14 +182,19 @@ function updateUI(temp) {
     }
 
     if (temp > 40) {
+        // Update Chart Realtime
         chartInstance.data.labels.push(timeStr);
         chartInstance.data.datasets[0].data.push(temp);
+        
+        // Jaga agar grafik tidak terlalu berat (max 50 titik)
         if (chartInstance.data.labels.length > 50) {
             chartInstance.data.labels.shift();
             chartInstance.data.datasets[0].data.shift();
         }
         chartInstance.update();
-        saveDataLocal(temp, timeStr);
+        
+        // Simpan ke sessionData untuk fitur Export Excel
+        sessionData.push({ time: timeStr, temp: temp });
         calculateStats();
     }
 }
@@ -196,7 +222,6 @@ function downloadReport() {
     XLSX.writeFile(wb, `Laporan_PETIR_QC_${currentDateKey}.xlsx`);
 }
 
-// === 6. EXPORT CHART TO IMAGE ===
 function exportChart() {
     const canvas = document.getElementById('tempChart');
     const link = document.createElement('a');
