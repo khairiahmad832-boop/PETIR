@@ -33,9 +33,22 @@
             <div><i class="fas fa-bolt petir-icon"></i> PETIR QC</div>
             <i class="fas fa-times close-btn" onclick="toggleMenu()"></i>
         </div>
-        <div class="menu-item active" onclick="switchTab('live')"><i class="fas fa-chart-line"></i> Live Monitor</div>
-        <div class="menu-item" onclick="downloadReport()"><i class="fas fa-file-excel"></i> Laporan PETIR</div>
-        <div class="menu-item" onclick="logout()"><i class="fas fa-sign-out-alt"></i> Keluar</div>
+        
+        <div class="menu-item active" onclick="switchTab('live')">
+            <i class="fas fa-chart-line"></i> Live Monitor
+        </div>
+        
+        <div class="menu-item" onclick="downloadReport()">
+            <i class="fas fa-file-excel"></i> Laporan PETIR
+        </div>
+
+        <div class="menu-item" onclick="openSettings()">
+            <i class="fas fa-sliders-h"></i> Konfigurasi Suhu
+        </div>
+
+        <div class="menu-item" onclick="logout()">
+            <i class="fas fa-sign-out-alt"></i> Keluar
+        </div>
         
         <div class="server-status">
             <span class="dot"></span> Online System
@@ -84,6 +97,25 @@
                 <div class="stat-row">
                     <span>Rata-rata:</span> <span id="avgTemp" class="val">--°</span>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="settingsOverlay" class="login-overlay" style="display: none;">
+        <div class="login-box">
+            <h3><i class="fas fa-cog fa-spin" style="color:#facc15;"></i> KONFIGURASI PETIR</h3>
+            
+            <div style="text-align: left; margin-top: 20px;">
+                <label style="color:#ccc; font-size:0.8rem; display:block; margin-bottom:5px;">Batas Atas (Overheat) °C:</label>
+                <input type="number" id="inputHigh" placeholder="Default: 190">
+                
+                <label style="color:#ccc; font-size:0.8rem; display:block; margin-bottom:5px; margin-top:10px;">Batas Bawah (Drop) °C:</label>
+                <input type="number" id="inputLow" placeholder="Default: 160">
+            </div>
+            
+            <div style="display:flex; gap:10px; margin-top: 20px;">
+                <button onclick="saveSettings()" style="background:#4ade80; color:#064e3b;">SIMPAN</button>
+                <button onclick="closeSettings()" style="background:#ef4444; color:white;">BATAL</button>
             </div>
         </div>
     </div>
