@@ -1,4 +1,4 @@
-// === KREDENSIAL LOGIN PETIR ===
+// === KREDENSIAL LOGIN ===
 const ADMIN_ID = "admin";
 const ADMIN_PASS = "qc123"; 
 
@@ -6,8 +6,7 @@ const ADMIN_PASS = "qc123";
 const BLYNK_TOKEN = "_Uc_SlWvcnKwlaBGhY5e0nv-_K6J4YGY";
 const VIRTUAL_PIN = "V0";
 
-// === PENGATURAN SUHU DINAMIS (Local Storage) ===
-// Mengambil data dari memori browser, jika kosong pakai default (190 & 160)
+// === SUHU DINAMIS (Local Storage) ===
 let TEMP_HIGH = parseFloat(localStorage.getItem('conf_high')) || 190.0;
 let TEMP_LOW  = parseFloat(localStorage.getItem('conf_low'))  || 160.0;
 
@@ -16,46 +15,33 @@ let sessionData = [];
 let chartInstance = null;
 let currentDateKey = new Date().toISOString().slice(0, 10); 
 
-// === 1. FITUR SETTINGS (BARU) ===
+// === 1. FITUR SETTINGS ===
 function openSettings() {
-    // Isi form dengan nilai yang sedang aktif
     document.getElementById('inputHigh').value = TEMP_HIGH;
     document.getElementById('inputLow').value = TEMP_LOW;
     document.getElementById('settingsOverlay').style.display = 'flex';
 }
-
 function closeSettings() {
     document.getElementById('settingsOverlay').style.display = 'none';
 }
-
 function saveSettings() {
     const h = parseFloat(document.getElementById('inputHigh').value);
     const l = parseFloat(document.getElementById('inputLow').value);
-
-    // Validasi
     if (!isNaN(h) && !isNaN(l) && h > l) {
-        TEMP_HIGH = h;
-        TEMP_LOW = l;
-        
-        // Simpan ke Memori HP/Laptop
+        TEMP_HIGH = h; TEMP_LOW = l;
         localStorage.setItem('conf_high', h);
         localStorage.setItem('conf_low', l);
-        
         Swal.fire({
-            icon: 'success',
-            title: 'Konfigurasi Disimpan!',
-            text: `Alarm Overheat: > ${h}°C | Alarm Drop: < ${l}°C`,
-            timer: 2000,
-            showConfirmButton: false
+            icon: 'success', title: 'Tersimpan!',
+            text: `Alarm: ${l}°C - ${h}°C`, timer: 2000, showConfirmButton: false
         });
         closeSettings();
-        // Update tampilan grafik/status segera nanti saat data baru masuk
     } else {
-        Swal.fire('Error', 'Angka tidak valid! Batas Atas harus lebih tinggi dari Bawah.', 'error');
+        Swal.fire('Error', 'Batas Atas harus lebih tinggi dari Bawah.', 'error');
     }
 }
 
-// === 2. SYSTEM LOGIN LOGIC ===
+// === 2. LOGIN LOGIC ===
 function attemptLogin() {
     const u = document.getElementById('userid').value;
     const p = document.getElementById('password').value;
@@ -65,23 +51,12 @@ function attemptLogin() {
         document.getElementById('loginOverlay').style.display = 'none';
         localStorage.setItem('petir_session', 'true');
         initDashboard();
-        Swal.fire({
-            icon: 'success',
-            title: 'Welcome to PETIR',
-            text: 'System Initialized Successfully!',
-            timer: 2000,
-            showConfirmButton: false
-        });
+        Swal.fire({ icon: 'success', title: 'Welcome to PETIR', timer: 2000, showConfirmButton: false });
     } else {
-        err.innerText = "Akses Ditolak: ID/Pass Salah!";
+        err.innerText = "Akses Ditolak!";
     }
 }
-
-function logout() {
-    localStorage.removeItem('petir_session');
-    location.reload();
-}
-
+function logout() { localStorage.removeItem('petir_session'); location.reload(); }
 function checkSession() {
     if (localStorage.getItem('petir_session') === 'true') {
         document.getElementById('loginOverlay').style.display = 'none';
@@ -96,15 +71,12 @@ function saveDataLocal(temp, timeStr) {
     localStorage.setItem('petir_data_' + currentDateKey, JSON.stringify(stored));
     sessionData = stored;
 }
-
 function loadDataByDate(dateKey) {
     currentDateKey = dateKey;
     const stored = JSON.parse(localStorage.getItem('petir_data_' + dateKey)) || [];
     sessionData = stored;
-    
     chartInstance.data.labels = [];
     chartInstance.data.datasets[0].data = [];
-    
     stored.forEach(d => {
         chartInstance.data.labels.push(d.time);
         chartInstance.data.datasets[0].data.push(d.temp);
@@ -148,22 +120,16 @@ function initDashboard() {
     setInterval(updateClock, 1000);
 }
 
-// === 5. FETCH REALTIME ===
+// === 5. FETCH & UI ===
 async function fetchBlynkData() {
     const today = new Date().toISOString().slice(0, 10);
     if (document.getElementById('datePicker').value !== today) return;
-
     try {
         const response = await fetch(`https://blynk.cloud/external/api/get?token=${BLYNK_TOKEN}&${VIRTUAL_PIN}`);
         const text = await response.text();
         const temp = parseFloat(text);
-
-        if (!isNaN(temp)) {
-            updateUI(temp);
-        }
-    } catch (error) {
-        console.log("Offline mode");
-    }
+        if (!isNaN(temp)) updateUI(temp);
+    } catch (error) { console.log("Offline mode"); }
 }
 
 function updateUI(temp) {
@@ -173,9 +139,9 @@ function updateUI(temp) {
     const timeStr = now.toLocaleTimeString();
 
     display.innerText = temp.toFixed(1);
-
-    // LOGIKA WARNA (Menggunakan Variabel Dinamis TEMP_HIGH & TEMP_LOW)
     badge.className = "badge";
+    
+    // Logic Warna Dinamis
     if (temp >= TEMP_HIGH) {
         display.style.color = "#ef4444";
         badge.classList.add("badge-danger");
@@ -220,23 +186,28 @@ function calculateStats() {
     document.getElementById('avgTemp').innerText = (total / sessionData.length).toFixed(1) + "°";
 }
 
-function updateClock() {
-    document.getElementById('clock').innerText = new Date().toLocaleTimeString();
-}
-
-function toggleMenu() {
-    document.getElementById('sidebar').classList.toggle('open');
-}
-
+function updateClock() { document.getElementById('clock').innerText = new Date().toLocaleTimeString(); }
+function toggleMenu() { document.getElementById('sidebar').classList.toggle('open'); }
 function downloadReport() {
-    if (sessionData.length === 0) {
-        Swal.fire('Data Kosong', 'Belum ada data terekam.', 'info');
-        return;
-    }
+    if (sessionData.length === 0) { Swal.fire('Info', 'Belum ada data.', 'info'); return; }
     const ws = XLSX.utils.json_to_sheet(sessionData);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Data QC");
     XLSX.writeFile(wb, `Laporan_PETIR_QC_${currentDateKey}.xlsx`);
+}
+
+// === 6. EXPORT CHART TO IMAGE ===
+function exportChart() {
+    const canvas = document.getElementById('tempChart');
+    const link = document.createElement('a');
+    const timestamp = new Date().toISOString().slice(0,19).replace(/:/g,"-");
+    link.download = `Grafik_PETIR_${timestamp}.png`;
+    link.href = canvas.toDataURL('image/png', 1.0);
+    link.click();
+    Swal.fire({
+        icon: 'success', title: 'Tersimpan!', text: 'Grafik berhasil disimpan ke Galeri.',
+        timer: 1500, showConfirmButton: false, toast: true, position: 'top-end'
+    });
 }
 
 checkSession();
