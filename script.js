@@ -5,15 +5,57 @@ const ADMIN_PASS = "qc123";
 // === KONFIGURASI BLYNK ===
 const BLYNK_TOKEN = "_Uc_SlWvcnKwlaBGhY5e0nv-_K6J4YGY";
 const VIRTUAL_PIN = "V0";
-const TEMP_HIGH = 190.0;
-const TEMP_LOW = 160.0;
+
+// === PENGATURAN SUHU DINAMIS (Local Storage) ===
+// Mengambil data dari memori browser, jika kosong pakai default (190 & 160)
+let TEMP_HIGH = parseFloat(localStorage.getItem('conf_high')) || 190.0;
+let TEMP_LOW  = parseFloat(localStorage.getItem('conf_low'))  || 160.0;
 
 // === STATE MANAGEMENT ===
 let sessionData = [];
 let chartInstance = null;
 let currentDateKey = new Date().toISOString().slice(0, 10); 
 
-// === 1. SYSTEM LOGIN LOGIC ===
+// === 1. FITUR SETTINGS (BARU) ===
+function openSettings() {
+    // Isi form dengan nilai yang sedang aktif
+    document.getElementById('inputHigh').value = TEMP_HIGH;
+    document.getElementById('inputLow').value = TEMP_LOW;
+    document.getElementById('settingsOverlay').style.display = 'flex';
+}
+
+function closeSettings() {
+    document.getElementById('settingsOverlay').style.display = 'none';
+}
+
+function saveSettings() {
+    const h = parseFloat(document.getElementById('inputHigh').value);
+    const l = parseFloat(document.getElementById('inputLow').value);
+
+    // Validasi
+    if (!isNaN(h) && !isNaN(l) && h > l) {
+        TEMP_HIGH = h;
+        TEMP_LOW = l;
+        
+        // Simpan ke Memori HP/Laptop
+        localStorage.setItem('conf_high', h);
+        localStorage.setItem('conf_low', l);
+        
+        Swal.fire({
+            icon: 'success',
+            title: 'Konfigurasi Disimpan!',
+            text: `Alarm Overheat: > ${h}°C | Alarm Drop: < ${l}°C`,
+            timer: 2000,
+            showConfirmButton: false
+        });
+        closeSettings();
+        // Update tampilan grafik/status segera nanti saat data baru masuk
+    } else {
+        Swal.fire('Error', 'Angka tidak valid! Batas Atas harus lebih tinggi dari Bawah.', 'error');
+    }
+}
+
+// === 2. SYSTEM LOGIN LOGIC ===
 function attemptLogin() {
     const u = document.getElementById('userid').value;
     const p = document.getElementById('password').value;
@@ -47,7 +89,7 @@ function checkSession() {
     }
 }
 
-// === 2. DATABASE BROWSER (LocalStorage) ===
+// === 3. DATABASE BROWSER ===
 function saveDataLocal(temp, timeStr) {
     let stored = JSON.parse(localStorage.getItem('petir_data_' + currentDateKey)) || [];
     stored.push({ time: timeStr, temp: temp });
@@ -71,7 +113,7 @@ function loadDataByDate(dateKey) {
     calculateStats();
 }
 
-// === 3. DASHBOARD LOGIC ===
+// === 4. DASHBOARD LOGIC ===
 function initDashboard() {
     const dateInput = document.getElementById('datePicker');
     dateInput.value = currentDateKey;
@@ -85,7 +127,7 @@ function initDashboard() {
             datasets: [{
                 label: 'Suhu (°C)',
                 data: [],
-                borderColor: '#facc15', // Kuning Petir
+                borderColor: '#facc15',
                 backgroundColor: 'rgba(250, 204, 21, 0.1)',
                 borderWidth: 2,
                 tension: 0.4,
@@ -106,7 +148,7 @@ function initDashboard() {
     setInterval(updateClock, 1000);
 }
 
-// === 4. FETCH REALTIME ===
+// === 5. FETCH REALTIME ===
 async function fetchBlynkData() {
     const today = new Date().toISOString().slice(0, 10);
     if (document.getElementById('datePicker').value !== today) return;
@@ -132,21 +174,22 @@ function updateUI(temp) {
 
     display.innerText = temp.toFixed(1);
 
+    // LOGIKA WARNA (Menggunakan Variabel Dinamis TEMP_HIGH & TEMP_LOW)
     badge.className = "badge";
     if (temp >= TEMP_HIGH) {
         display.style.color = "#ef4444";
         badge.classList.add("badge-danger");
-        badge.innerText = "BAHAYA: OVERHEAT";
+        badge.innerText = `BAHAYA: > ${TEMP_HIGH}°C`;
     } else if (temp <= TEMP_LOW && temp > 40) {
         display.style.color = "#facc15";
         badge.classList.add("badge-warning");
-        badge.innerText = "WARNING: DROP";
+        badge.innerText = `WARNING: < ${TEMP_LOW}°C`;
     } else if (temp <= 40) {
         display.style.color = "#94a3b8";
         badge.classList.add("badge-loading");
         badge.innerText = "MODE: DINGIN";
     } else {
-        display.style.color = "#facc15"; // Kuning Normal
+        display.style.color = "#facc15";
         badge.classList.add("badge-normal");
         badge.innerText = "PETIR: STABIL";
     }
@@ -193,7 +236,6 @@ function downloadReport() {
     const ws = XLSX.utils.json_to_sheet(sessionData);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Data QC");
-    // Nama file Laporan PETIR
     XLSX.writeFile(wb, `Laporan_PETIR_QC_${currentDateKey}.xlsx`);
 }
 
