@@ -61,7 +61,6 @@
                 <i class="fas fa-bars mobile-menu-btn" onclick="toggleMenu()"></i>
                 <h2>DASHBOARD PETIR</h2>
             </div>
-            
             <div class="header-right">
                 <input type="date" id="datePicker" class="date-picker">
                 <div id="clock" class="clock">00:00:00</div>
@@ -80,7 +79,12 @@
             </div>
 
             <div class="card chart-card">
-                <h3>GRAFIK PERGERAKAN SUHU</h3>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                    <h3 style="margin:0;">GRAFIK PERGERAKAN SUHU</h3>
+                    <button onclick="exportChart()" class="btn-camera">
+                        <i class="fas fa-camera"></i> Foto
+                    </button>
+                </div>
                 <div class="chart-container">
                     <canvas id="tempChart"></canvas>
                 </div>
